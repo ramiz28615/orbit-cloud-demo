@@ -130,6 +130,7 @@
   <div class="overlay" id="authOverlay" role="dialog" aria-modal="true" aria-labelledby="authTitle" aria-hidden="true"><div class="auth-card"><button class="icon-btn close-x" data-close-auth aria-label="Kapat">×</button><div class="auth-heading"><a class="brand" href="#top"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 14.5 12 4l8 10.5-8 5.5-8-5.5Z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 14.5h16M12 4v16" stroke="white" stroke-width="1.2"/></svg></span>orbit<span style="font-weight:450;color:#7d8396">cloud</span></a><h2 id="authTitle">Orbit Cloud'a hoş geldin</h2><p id="authSubtitle">Çalışma alanına devam etmek için giriş yap.</p></div><div class="auth-tabs"><button class="auth-tab active" data-auth-tab="signin">Giriş yap</button><button class="auth-tab" data-auth-tab="signup">Kayıt ol</button></div><button class="google-btn" id="googleSignIn"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.7c3.9-3.6 6-8.8 6-15Z"/><path fill="#34A853" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.7-5.1c-1.8 1.2-4.1 2-6.8 2-5.2 0-9.7-3.5-11.3-8.2H5.8v5.2A20 20 0 0 0 24 44Z"/><path fill="#4285F4" d="M12.7 27.8a12 12 0 0 1 0-7.6V15H5.8a20 20 0 0 0 0 17.9l6.9-5.1Z"/><path fill="#EA4335" d="M24 12.1c3 0 5.7 1 7.8 3.1l5.9-5.9C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15l6.9 5.2c1.6-4.7 6.1-8.1 11.3-8.1Z"/></svg><span id="googleLabel">Google ile devam et</span></button><div class="auth-divider">veya</div><button class="btn btn-light" type="button" id="demoAccess" style="width:100%">Demo panosunu aç (hesapsız)</button><div class="auth-note"><b>Google ile giriş gerçek Firebase Authentication kullanır.</b> Hesapsız demo panosu Firebase'e bağlanmaz; içerik örnek veridir.</div><p class="auth-legal">Devam ederek <a href="#footer">Kullanım Koşulları</a> ve <a href="#footer">Gizlilik Politikası</a>'nı kabul etmiş olursun. (Örnek metin)</p></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module">
+    import { shouldAutoUseLiveSession } from './auth-demo-state.mjs';
     let initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence;
     let firebaseConfigured = false;
     let auth = null;
@@ -145,6 +146,7 @@
     }[name]||'');
     let currentView='overview', authTab='signin', toastTimer;
     let demoMode=new URLSearchParams(location.search).get('demo')==='1';
+    let userSelectedDemo=false;
     const landing=document.getElementById('landing'), dashboard=document.getElementById('dashboard'), authOverlay=document.getElementById('authOverlay');
     const safe=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3100)}
@@ -166,6 +168,7 @@
           const userChanged=!!currentUser&&!!user&&currentUser.uid!==user.uid;
           if(userChanged)clearLiveData();
           currentUser=user||null;
+          if(shouldAutoUseLiveSession(user, userSelectedDemo))useLiveSession(user);
           if(user){
             const display=user.displayName||user.email||'Kullanıcı';
             const initial=[...display.trim()][0]?.toLocaleUpperCase('tr-TR')||'U';
@@ -199,7 +202,7 @@
     function useLiveSession(user){
       if(!hasGoogleSession(user)){openAuth('signin');return}
       const reset=demoMode||currentUser?.uid!==user.uid||['error','unauthenticated','forbidden'].includes(liveState);
-      demoMode=false;
+      demoMode=false;userSelectedDemo=false;
       const url=new URL(location.href);if(url.searchParams.has('demo')){url.searchParams.delete('demo');history.replaceState(null,'',url)}
       if(reset)clearLiveData();
       currentUser=user;
@@ -371,7 +374,7 @@
     function applySearch(){const q=document.getElementById('globalSearch').value.trim().toLowerCase();document.querySelectorAll('#viewContent [data-search]').forEach(el=>{el.style.display=!q||el.dataset.search.toLowerCase().includes(q)?'':'none'})}
     document.addEventListener('click',(e)=>{
       const open=e.target.closest('[data-open-auth]');if(open){openAuth(open.dataset.openAuth);return}
-      if(e.target.closest('[data-open-dashboard]')){demoMode=true;clearLiveData();showDashboard();toast('Demo panosu açıldı · canlıymış gibi örnek veri gösterilmez.');return}
+      if(e.target.closest('[data-open-dashboard]')){demoMode=true;userSelectedDemo=true;clearLiveData();showDashboard();toast('Demo panosu açıldı · canlıymış gibi örnek veri gösterilmez.');return}
       if(e.target.closest('[data-close-auth]')){closeAuth();return}
       const tab=e.target.closest('[data-auth-tab]');if(tab){authTab=tab.dataset.authTab;updateAuth();return}
       const nav=e.target.closest('[data-view]');if(nav){renderView(nav.dataset.view);return}
@@ -396,7 +399,7 @@
       }
       if(e.target===authOverlay)closeAuth();
     });
-    document.getElementById('demoAccess').addEventListener('click',()=>{demoMode=true;clearLiveData();closeAuth();showDashboard();toast('Hesapsız demo panosu açıldı; örnek kayıt gösterilmez.');});
+    document.getElementById('demoAccess').addEventListener('click',()=>{demoMode=true;userSelectedDemo=true;clearLiveData();closeAuth();showDashboard();toast('Hesapsız demo panosu açıldı; örnek kayıt gösterilmez.');});
     document.getElementById('googleSignIn').addEventListener('click',async()=>{if(!auth||!signInWithPopup){toast(firebaseLoadError?'Google girişi kullanılamıyor: Firebase modülleri yüklenemedi. Hesapsız demo panosunu açabilirsiniz.':'Google girişi kullanılamıyor. Firebase yapılandırmasını ve bağlantıyı kontrol edin.');return}const button=document.getElementById('googleSignIn');button.disabled=true;try{const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});const result=await signInWithPopup(auth,provider);useLiveSession(result.user)}catch(error){const messages={'auth/popup-closed-by-user':'Google giriş penceresi kapatıldı; oturum açılmadı.','auth/popup-blocked':'Tarayıcı açılır pencereyi engelledi. İzin verip yeniden dene.','auth/network-request-failed':'Ağ bağlantısı kurulamadı. İnternetini kontrol edip yeniden dene.','auth/unauthorized-domain':'Bu alan adı Firebase Authentication’da yetkilendirilmemiş.','auth/operation-not-allowed':'Firebase Console’da Google sağlayıcısını etkinleştir.'};toast(messages[error.code]||'Google ile giriş başarısız oldu. Lütfen yeniden dene.')}finally{button.disabled=false}});
     if(demoMode)showDashboard();
     initializeFirebase();
