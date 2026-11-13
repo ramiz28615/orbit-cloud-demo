@@ -1,23 +1,23 @@
-# Orbit Cloud — etkileşimli prototip
+# Orbit Cloud
 
-Orbit Cloud, GitHub Pages üzerinde barındırılan statik ve responsive bir dashboard prototipidir. Overview, Projects, Deployments, CI, Logs, Traces, Analytics, Speed Insights, Observability, Firewall, CDN, Environment Variables, Domains, Connect, Integrations, Storage, Flags, Agent, Vulnerabilities, AI Gateway, Sandboxes, Workflows, Images, Daemons, Usage, Support ve Settings için tıklanabilir görünümler içerir.
+Orbit Cloud, GitHub Pages üzerinde barındırılan statik bir dashboard prototipidir. Google girişi Firebase Authentication kullanır. Doğrulanmış ve köprüde sahip olduğu teyit edilmiş oturumla Projects, Deployments, Domains ve desteklenen ölçüde Web Analytics verileri salt-okunur biçimde gösterilir. Diğer paneller açıkça veri yok/demo olarak işaretlenir; sentetik canlı metrik üretilmez.
 
-## Firebase Google Authentication
+## Google ile giriş
 
-Google ile giriş gerçek Firebase Authentication kullanır. İlk Google girişinde Firebase hesabı otomatik oluşturulur; sonraki girişler mevcut hesabı kullanır. Oturum tarayıcıda kalıcıdır ve çıkış Firebase `signOut` ile yapılır. `firebase-config.js` herkese açık Firebase web istemci yapılandırmasını içerir; yönetici servis hesabı anahtarı değildir.
+İlk Google girişinde Firebase hesabı otomatik oluşturulur; sonraki girişler mevcut hesabı kullanır. Oturum tarayıcıda kalıcıdır ve çıkış Firebase `signOut` ile yapılır. `firebase-config.js`, tarayıcıda kullanılmak üzere tasarlanmış herkese açık Firebase web istemci yapılandırmasını içerir; yönetici servis hesabı anahtarı değildir. Firebase Console'da Google sağlayıcısı etkin ve GitHub Pages alan adı yetkili olmalıdır.
 
-Firebase Console'da Google sağlayıcısı etkin ve dağıtım alan adı yetkili olmalıdır. Uygulama Firebase modüllerini dinamik yükler; bağlantı veya yapılandırma hatasında Google giriş düğmesi açıklayıcı hata gösterir. Sayfayı HTTP(S) üzerinden sunun; `file://` ile ES modülleri çalışmayabilir.
+## Canlı Vercel verisi
 
-## Salt-okunur Vercel verisi
+Özel [salt-okunur Vercel köprüsü](https://orbit-cloud-readonly-bridge.vercel.app/api) Firebase ID token'ını sunucuda doğrular ve yalnızca yapılandırılmış, Google sağlayıcısından doğrulanmış sahibin kimliğine erişim verir. Köprüdeki Vercel erişim anahtarı yalnızca sunucu tarafında tutulur; bu depoya, sayfaya veya tarayıcıya eklenmez. İstemci ve köprü yalnızca GET istekleri yapar; yanıtlar önbelleğe alınmaz.
 
-Doğrulanmış çalışma alanı sahibi giriş yaptığında Projects ve Deployments ekranları [ayrı sunucu köprüsünden](https://orbit-cloud-readonly-bridge.vercel.app/api) canlı Vercel verisi alır. Köprü Firebase ID token'ını sunucuda doğrular ve yalnızca sahibin kimliğine izin verir. Vercel erişim anahtarı yalnızca Vercel'deki hassas sunucu ortam değişkeninde saklanır; web sayfasına, tarayıcı depolamasına veya bu herkese açık depoya konmaz. Köprü yalnızca proje ve dağıtım listeleme GET çağrıları yapar ve yanıtları önbelleğe almaz.
+Projects ve Deployments, API'nin en fazla 100 kayıtlık yanıtını gösterir; bu sayılar hesaptaki toplamı belirtmez. Domains hesabın en fazla 100 alan adını listeler; ek sayfa varsa görünüm kısmi olduğunu bildirir. Web Analytics yalnızca etkin olduğu anlaşılan en fazla beş projeyi sorgular, günlük sayfa görüntüleme toplamlarını gösterir ve kısmi kapsamı belirtir. Ziyaretçi kimliği ve ham istek boyutları alınmaz. API erişimi, ürün izni veya plan kapsamı yeterli değilse Analytics “veri yok/kullanılamıyor” olarak kalır.
 
-Bu iki ekran salt-okunurdur: proje/dağıtım oluşturma, dağıtım başlatma, ayar değiştirme, silme veya faturalandırma işlemi yoktur. Köprü mevcut Vercel Hobby çalışma alanında çalışır; bu entegrasyon plan veya faturalandırma değişikliği yapmaz. Süreli Vercel erişim anahtarının süresi dolduğunda sunucu tarafındaki gizli değişkenin yenilenmesi ve köprünün yeniden dağıtılması gerekir.
+Bu uygulama veya köprü hiçbir proje, dağıtım, alan adı, ayar ya da entegrasyon oluşturmaz/değiştirmez; build/deploy başlatmaz; silme, DNS düzenleme, environment variable/secret veya log okuma yapmaz; billing bilgisi okumaz ya da değiştirmez. Hobby ve Firebase Spark planları korunur; ücretli kullanım veya ek yetki gerekirse ayar değişikliği yapmadan durulur.
 
-## Demo sınırları
+## Demo ve sınırlamalar
 
-- Hesapsız demo panosu Firebase oturumu veya hesabı oluşturmaz; `?demo=1` parametresi doğrudan örnek görünümü açar.
-- Overview ölçümleri, etkinlik akışı ve Projects/Deployments için oturum açılmamış demo verileri sentetiktir.
-- CI, loglar, traces, analytics, alan adları, environment variables, entegrasyonlar, storage ve diğer bulut ekranları örnek veridir; gerçek kaynaklara bağlanmaz.
-- Demo modundaki yeni proje, dağıtım, alan adı ve ayar etkileşimleri yalnızca geçici tarayıcı simülasyonudur; gerçek Git deposu, build, dağıtım, DNS kaydı veya bulut ayarı oluşturmaz. Örnek değişiklikler yenilemede sıfırlanır.
-- E-posta/şifre formu yoktur; Google girişi dışında ek kişisel bilgi toplanmaz.
+Hesapsız demo modu (`?demo=1` dahil) gerçek kaynağa bağlanmaz ve canlıymış gibi örnek proje, deployment, alan adı, grafik veya ölçüm göstermez. Tanıtım görselindeki örnek kart statiktir ve canlı kayıt değildir. CI, Logs, Traces, Speed Insights, Observability, Firewall, CDN, Environment Variables, Integrations, Storage, Flags, Agent, Vulnerabilities, AI Gateway, Sandboxes, Workflows, Images, Daemons, Usage, Support ve Settings için güvenli ve doğrulanmış salt-okunur kaynak yoktur; ekranlarda açık bir veri yok/demo açıklaması yer alır.
+
+## Yerel önizleme
+
+Sayfayı HTTP(S) üzerinden sunun; `file://` ile ES modülleri çalışmayabilir. Örneğin `python3 -m http.server 8000` komutunu depo kökünde çalıştırabilirsiniz. Gerçek Google girişi için ayrıca Firebase proje yapılandırması ve yetkili alan adı gerekir.
