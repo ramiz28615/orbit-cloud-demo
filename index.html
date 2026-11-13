@@ -135,7 +135,7 @@
     let auth = null;
     let firebaseLoadError = false;
     const BRIDGE_API_BASE='https://orbit-cloud-readonly-bridge.vercel.app/api';
-    let currentUser=null, liveData=null, liveState='idle';
+    let currentUser=null, liveData=null, liveState='idle', liveRequestVersion=0;
     const icon=(name)=>({
       folder:'<svg viewBox="0 0 24 24" fill="none"><path d="M4 7.5h6l2 2h8v8.8A1.7 1.7 0 0 1 18.3 20H5.7A1.7 1.7 0 0 1 4 18.3V7.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 7.5V5.7A1.7 1.7 0 0 1 5.7 4h3.8l2 2H18" stroke="currentColor" stroke-width="1.7"/></svg>',
       deploy:'<svg viewBox="0 0 24 24" fill="none"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="m4.4 7.6 7.6 4.3 7.6-4.3M12 12v9" stroke="currentColor" stroke-width="1.7"/></svg>',
@@ -164,7 +164,7 @@
         setPersistence(auth,browserLocalPersistence).catch(()=>toast('Oturum saklama ayarı yapılamadı. Lütfen bağlantını kontrol et.'));
         onAuthStateChanged(auth,user=>{
           const userChanged=!!currentUser&&!!user&&currentUser.uid!==user.uid;
-          if(userChanged){liveData=null;liveState='idle'}
+          if(userChanged)clearLiveData();
           currentUser=user||null;
           if(user){
             const display=user.displayName||user.email||'Kullanıcı';
@@ -175,10 +175,10 @@
             document.getElementById('topAvatar').textContent=initial;
             document.getElementById('topAvatar').removeAttribute('data-open-auth');
             if(hasGoogleSession(user)&&!demoMode&&liveState==='idle')void loadLiveData(user);
-            else if(demoMode){liveData=null;liveState='idle'}
+            else if(demoMode)clearLiveData();
             showDashboard();
           }else{
-            liveData=null;liveState='idle';
+            clearLiveData();
             document.getElementById('userName').textContent='Demo kullanıcı';
             document.getElementById('userEmail').textContent='Demo kullanıcı · oturum yok';
             document.getElementById('userInitial').textContent='D';
@@ -195,6 +195,17 @@
     function openAuth(tab='signin'){authTab=tab;updateAuth();authOverlay.classList.add('open');authOverlay.setAttribute('aria-hidden','false');setTimeout(()=>document.querySelector('.auth-card button[data-close-auth]').focus(),80)}
     function closeAuth(){authOverlay.classList.remove('open');authOverlay.setAttribute('aria-hidden','true')}
     function updateAuth(){document.querySelectorAll('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b.dataset.authTab===authTab));document.getElementById('authTitle').textContent=authTab==='signup'?'Orbit Cloud hesabını oluştur':'Orbit Cloud\'a hoş geldin';document.getElementById('authSubtitle').textContent=authTab==='signup'?'Google hesabınla gerçek Firebase hesabı oluştur.':'Firebase hesabınla devam et.';document.getElementById('googleLabel').textContent=authTab==='signup'?'Google ile kayıt ol':'Google ile devam et';}
+    function clearLiveData(){liveRequestVersion++;liveData=null;liveState='idle'}
+    function useLiveSession(user){
+      if(!hasGoogleSession(user)){openAuth('signin');return}
+      const reset=demoMode||currentUser?.uid!==user.uid||['error','unauthenticated','forbidden'].includes(liveState);
+      demoMode=false;
+      const url=new URL(location.href);if(url.searchParams.has('demo')){url.searchParams.delete('demo');history.replaceState(null,'',url)}
+      if(reset)clearLiveData();
+      currentUser=user;
+      if(liveState==='idle')void loadLiveData(user);
+      showDashboard();
+    }
     function showDashboard(){closeAuth();landing.classList.add('hidden');dashboard.classList.remove('hidden');renderView(currentView);window.scrollTo(0,0)}
     function showLanding(){dashboard.classList.add('hidden');landing.classList.remove('hidden');window.scrollTo(0,0)}
     function statusPill(status){let cls=status==='Hazır'?'good':status==='Derleniyor'?'building':'failed';return `<span class="status-pill ${cls}">${safe(status)}</span>`}
@@ -202,6 +213,12 @@
     function heading(title,subtitle,actions=''){return `<div class="dash-title-row"><div><h1>${title}</h1><p>${subtitle}</p></div><div class="dash-title-actions">${actions}</div></div>`}
     function demoUnavailableView(title,subtitle,detail='Bu görünümde güvenli canlı veri yok; örnek kayıt ve ölçüm gösterilmiyor.'){
       return `${heading(title,subtitle)}<div class="global-demo-note"><strong>DEMO / CANLI VERİ YOK</strong><span>${safe(detail)}</span></div><div class="section-empty"><h3>Canlı veri gösterilmiyor</h3><p>Bu özellik için güvenli, salt-okunur ve bu planla uyumlu bir veri kaynağı doğrulanmadı. Örnek değerler gösterilmez.</p></div>`
+    }
+    function liveAccessView(title,subtitle){
+      const signedIn=hasGoogleSession(currentUser);
+      const detail=demoMode?'Demo modu açık. Canlı veriler için demo modundan çık.':currentUser?'Google oturumu doğrulanamadı. Google ile tekrar giriş yap.':'Canlı veriler için Google ile giriş yap.';
+      const action=demoMode&&signedIn?'<button class="btn btn-primary btn-small" data-action="use-live">Canlı verilere geç</button>':'<button class="btn btn-primary btn-small" data-open-auth="signin">Google ile giriş yap</button>';
+      return `${heading(title,subtitle)}<div class="global-demo-note"><strong>${demoMode?'DEMO MODU':'OTURUM GEREKLİ'}</strong><span>${safe(detail)} Erişim sunucuda doğrulanır; örnek kayıt gösterilmez.</span></div><div class="section-empty"><h3>Canlı veri gösterilmiyor</h3><p>${safe(detail)}</p>${action}</div>`;
     }
     function chartMarkup(series,title='Günlük sayfa görüntüleme'){
       if(!Array.isArray(series)||!series.length)return '<div class="section-empty"><h3>Grafik verisi yok</h3><p>Bu aralık için canlı Analytics verisi alınamadı.</p></div>';
@@ -221,39 +238,50 @@
     }
     function overviewView(){
       if(ownerLiveReady())return liveState==='ready'?liveOverviewView():liveLoadingView('Genel bakış','Canlı çalışma alanı verileri.');
-      return demoUnavailableView('Overview','Canlı çalışma alanı özeti.','Owner-only Vercel verisi yalnızca sunucuda doğrulanan Google hesabına açılır. Demo görünümünde canlıymış gibi örnek metrik gösterilmez.');
+      return liveAccessView('Overview','Canlı çalışma alanı özeti.');
     }
     function hasGoogleSession(user){return !!user&&user.emailVerified===true&&Array.isArray(user.providerData)&&user.providerData.some(p=>p.providerId==='google.com')&&typeof user.getIdToken==='function';}
-    function ownerLiveReady(){return hasGoogleSession(currentUser)&&!demoMode&&liveState!=='forbidden';}
+    function ownerLiveReady(){return hasGoogleSession(currentUser)&&!demoMode;}
     function liveDate(value){const ms=Number(value);if(!Number.isFinite(ms)||ms<=0)return '—';try{return new Intl.DateTimeFormat('tr-TR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(ms))}catch{return '—'}}
     function liveStatus(value){return ({READY:'Hazır',BUILDING:'Derleniyor',INITIALIZING:'Başlatılıyor',QUEUED:'Sırada',ERROR:'Başarısız',CANCELED:'İptal edildi',BLOCKED:'Engellendi'})[String(value||'').toUpperCase()]||'Bilinmiyor'}
     function liveBanner(){return '<div class="live-readonly-banner"><strong>CANLI · SALT OKUNUR</strong><span>Veri, sunucuda sahibi doğrulanan Google oturumu için Vercel’in sınırlı GET uçlarından alınır. Kaynaklarda değişiklik yapılmaz.</span></div>'}
     function liveRetryButton(){return '<button class="btn btn-light btn-small" data-action="refresh-live">Yeniden yükle</button>'}
     async function loadLiveData(user){
       if(!hasGoogleSession(user)||demoMode||liveState==='loading')return;
+      const requestVersion=++liveRequestVersion;
+      const stillCurrent=()=>requestVersion===liveRequestVersion&&auth?.currentUser?.uid===user.uid&&hasGoogleSession(auth.currentUser)&&!demoMode;
       liveState='loading';
       try{
-        const idToken=await user.getIdToken();
-        const headers={Authorization:`Bearer ${idToken}`};
-        const options={method:'GET',headers,cache:'no-store',credentials:'omit',mode:'cors',referrerPolicy:'no-referrer'};
-        const [projectResponse,deploymentResponse,domainResponse,analyticsResponse]=await Promise.all([
-          fetch(`${BRIDGE_API_BASE}/projects`,options),
-          fetch(`${BRIDGE_API_BASE}/deployments`,options),
-          fetch(`${BRIDGE_API_BASE}/domains`,options).catch(()=>null),
-          fetch(`${BRIDGE_API_BASE}/analytics`,options).catch(()=>null)
-        ]);
-        if(!auth?.currentUser||auth.currentUser.uid!==user.uid||!hasGoogleSession(auth.currentUser)||demoMode)return;
-        if([projectResponse.status,deploymentResponse.status].some(status=>status===401||status===403)){
+        const requestData=async(forceRefresh=false)=>{
+          const idToken=await user.getIdToken(forceRefresh);
+          const options={method:'GET',headers:{Authorization:`Bearer ${idToken}`},cache:'no-store',credentials:'omit',mode:'cors',referrerPolicy:'no-referrer'};
+          return Promise.all([
+            fetch(`${BRIDGE_API_BASE}/projects`,options),
+            fetch(`${BRIDGE_API_BASE}/deployments`,options),
+            fetch(`${BRIDGE_API_BASE}/domains`,options).catch(()=>null),
+            fetch(`${BRIDGE_API_BASE}/analytics`,options).catch(()=>null)
+          ]);
+        };
+        let [projectResponse,deploymentResponse,domainResponse,analyticsResponse]=await requestData();
+        if(!stillCurrent())return;
+        if([projectResponse.status,deploymentResponse.status].includes(401)){
+          [projectResponse,deploymentResponse,domainResponse,analyticsResponse]=await requestData(true);
+          if(!stillCurrent())return;
+        }
+        if([projectResponse.status,deploymentResponse.status].includes(401)){
+          liveData=null;liveState='unauthenticated';
+        }else if([projectResponse.status,deploymentResponse.status].includes(403)){
           liveData=null;liveState='forbidden';
         }else{
           if(!projectResponse.ok||!deploymentResponse.ok)throw new Error('Live data unavailable');
           const [projectBody,deploymentBody]=await Promise.all([projectResponse.json(),deploymentResponse.json()]);
-          if(!auth?.currentUser||auth.currentUser.uid!==user.uid||!hasGoogleSession(auth.currentUser)||demoMode)return;
+          if(!stillCurrent())return;
           const optionalBody=async(response,fallback)=>{if(!response?.ok)return fallback;try{return await response.json()}catch{return fallback}};
           const [domainBody,analyticsBody]=await Promise.all([
             optionalBody(domainResponse,{available:false,reason:'Alan adı verisi şu anda alınamıyor.'}),
             optionalBody(analyticsResponse,{available:false,reason:'Analytics verisi şu anda alınamıyor.'})
           ]);
+          if(!stillCurrent())return;
           liveData={
             projects:Array.isArray(projectBody.projects)?projectBody.projects:[],
             deployments:Array.isArray(deploymentBody.deployments)?deploymentBody.deployments:[],
@@ -263,13 +291,17 @@
           liveState='ready';
         }
       }catch{
-        if(auth?.currentUser?.uid===user.uid&&!demoMode)liveState='error';
+        if(stillCurrent())liveState='error';
       }
-      if(['overview','projects','deployments','domains','analytics'].includes(currentView))renderView(currentView);
+      if(stillCurrent()&&['overview','projects','deployments','domains','analytics'].includes(currentView))renderView(currentView);
     }
     function liveLoadingView(title,subtitle){
       const loading=liveState==='loading'||liveState==='idle';
-      return `${heading(title,subtitle,loading?'':liveRetryButton())}${liveBanner()}<div class="section-empty"><h3>${loading?'Canlı veriler yükleniyor':'Vercel verisi alınamadı'}</h3><p>${loading?'Sahip oturumu sunucuda doğrulanıyor; yalnızca salt-okunur GET uçları çağrılıyor.':'Bağlantı kurulamadı. Canlı veri gösterilmedi; yeniden deneyebilirsin.'}</p>${loading?'':liveRetryButton()}</div>`;
+      const denied=liveState==='forbidden',unauthenticated=liveState==='unauthenticated';
+      const titleText=loading?'Canlı veriler yükleniyor':denied?'Bu hesaba erişim izni verilmedi':unauthenticated?'Google oturumu doğrulanamadı':'Vercel verisi alınamadı';
+      const detail=loading?'Oturum sunucuda doğrulanıyor; yalnızca salt-okunur GET uçları çağrılıyor.':denied?'Sunucu bu Google hesabına erişim vermedi. Yetkili hesapla tekrar giriş yap.':unauthenticated?'Oturum anahtarı yenilendi ancak sunucu doğrulayamadı. Google ile tekrar giriş yap.':'Bağlantı veya veri kaynağı yanıtı alınamadı. Yeniden deneyebilirsin.';
+      const action=denied||unauthenticated?'<button class="btn btn-primary btn-small" data-open-auth="signin">Google ile tekrar giriş yap</button>':loading?'':liveRetryButton();
+      return `${heading(title,subtitle,loading?'':liveRetryButton())}<div class="section-empty"><h3>${safe(titleText)}</h3><p>${safe(detail)}</p>${action}</div>`;
     }
     function liveProjectsView(){
       const projects=liveData?.projects||[];
@@ -278,7 +310,7 @@
     }
     function projectsView(){
       if(ownerLiveReady())return liveState==='ready'?liveProjectsView():liveLoadingView('Projects','Canlı proje listesi.');
-      return demoUnavailableView('Projects','Vercel proje listesi.','Owner-only Vercel verisi yalnızca sunucuda doğrulanan Google hesabına açılır. Demo görünümünde örnek proje kaydı gösterilmez.');
+      return liveAccessView('Projects','Vercel proje listesi.');
     }
     function liveDeploymentsView(){
       const deployments=liveData?.deployments||[];
@@ -287,10 +319,10 @@
     }
     function deploymentsView(){
       if(ownerLiveReady())return liveState==='ready'?liveDeploymentsView():liveLoadingView('Deployments','Canlı dağıtım listesi.');
-      return demoUnavailableView('Deployments','Vercel dağıtım listesi.','Owner-only Vercel verisi yalnızca sunucuda doğrulanan Google hesabına açılır. Demo görünümünde örnek dağıtım kaydı gösterilmez.');
+      return liveAccessView('Deployments','Vercel dağıtım listesi.');
     }
     function domainsView(){
-      if(!ownerLiveReady())return demoUnavailableView('Domains','Vercel hesabındaki alan adları.','Alan adı listesi yalnızca sunucuda doğrulanan hesap sahibine açılır; demo kayıtları gösterilmez.');
+      if(!ownerLiveReady())return liveAccessView('Domains','Vercel hesabındaki alan adları.');
       if(liveState!=='ready')return liveLoadingView('Domains','Hesap alan adlarının salt-okunur listesi.');
       const result=liveData?.domains;
       if(!result?.available)return `${heading('Domains','Hesap alan adlarının salt-okunur listesi.',liveRetryButton())}${liveBanner()}<div class="global-demo-note"><strong>VERİ YOK</strong><span>${safe(result?.reason||'Alan adı verisi Vercel API üzerinden alınamadı.')}</span></div>`;
@@ -298,7 +330,7 @@
       return `${heading('Domains','Vercel hesabındaki alan adları; DNS ayarı yapılmaz.',liveRetryButton())}${liveBanner()}${result.partial?'<div class="global-demo-note"><strong>KISMİ KAPSAM</strong><span>Vercel API en fazla 100 alan adı döndürdü; sonraki sayfa bu görünümde okunmadı.</span></div>':''}${rows?`<div class="domain-list">${rows}</div>`:'<div class="section-empty"><h3>Alan adı kaydı yok</h3><p>Vercel API yanıtında listelenecek alan adı bulunamadı.</p></div>'}`;
     }
     function analyticsView(){
-      if(!ownerLiveReady())return demoUnavailableView('Analytics','Vercel Web Analytics · son 7 gün.','Trafik metrikleri yalnızca sunucuda doğrulanan hesap sahibine açılır. Demo görünümünde sentetik sayı veya grafik gösterilmez.');
+      if(!ownerLiveReady())return liveAccessView('Analytics','Vercel Web Analytics · son 7 gün.');
       if(liveState!=='ready')return liveLoadingView('Analytics','Son 7 günlük Vercel Web Analytics özeti.');
       const data=liveData?.analytics;
       if(!data?.available)return `${heading('Analytics','Vercel Web Analytics · son 7 gün.',liveRetryButton())}${liveBanner()}<div class="global-demo-note"><strong>VERİ YOK / KULLANILAMIYOR</strong><span>${safe(data?.reason||'Bu özellik için canlı Analytics verisi mevcut değil.')}</span></div><div class="section-empty"><h3>Analytics verisi gösterilmiyor</h3><p>Vercel Web Analytics etkin değilse, API erişimi yoksa veya bu plan/kapsamda veri sağlanmıyorsa metrik üretilmez. İzin ya da faturalandırma ayarı değiştirilmedi.</p></div>`;
@@ -339,7 +371,7 @@
     function applySearch(){const q=document.getElementById('globalSearch').value.trim().toLowerCase();document.querySelectorAll('#viewContent [data-search]').forEach(el=>{el.style.display=!q||el.dataset.search.toLowerCase().includes(q)?'':'none'})}
     document.addEventListener('click',(e)=>{
       const open=e.target.closest('[data-open-auth]');if(open){openAuth(open.dataset.openAuth);return}
-      if(e.target.closest('[data-open-dashboard]')){demoMode=true;liveData=null;liveState='idle';showDashboard();toast('Demo panosu açıldı · canlıymış gibi örnek veri gösterilmez.');return}
+      if(e.target.closest('[data-open-dashboard]')){demoMode=true;clearLiveData();showDashboard();toast('Demo panosu açıldı · canlıymış gibi örnek veri gösterilmez.');return}
       if(e.target.closest('[data-close-auth]')){closeAuth();return}
       const tab=e.target.closest('[data-auth-tab]');if(tab){authTab=tab.dataset.authTab;updateAuth();return}
       const nav=e.target.closest('[data-view]');if(nav){renderView(nav.dataset.view);return}
@@ -347,21 +379,25 @@
       if(btn){
         const action=btn.dataset.action;
         if(action==='logout'){
-          liveData=null;liveState='idle';currentUser=null;
+          clearLiveData();currentUser=null;
           if(auth?.currentUser){demoMode=false;signOut(auth).catch(()=>toast('Çıkış yapılamadı. Bağlantını kontrol edip yeniden dene.'));}
           else{demoMode=false;showLanding();toast('Demo oturumundan çıkıldı; demo oturumu saklanmıyor.');}
           return;
         }
         if(action==='refresh-live'){
-          if(auth?.currentUser&&hasGoogleSession(auth.currentUser)&&!demoMode){liveState='idle';liveData=null;void loadLiveData(auth.currentUser);renderView(currentView)}
+          if(auth?.currentUser&&hasGoogleSession(auth.currentUser)&&!demoMode){clearLiveData();void loadLiveData(auth.currentUser);renderView(currentView)}
+          return;
+        }
+        if(action==='use-live'){
+          useLiveSession(auth?.currentUser);
           return;
         }
         if(action==='toast'){toast(btn.dataset.message||'Bu bölümde canlı veri yok.');return}
       }
       if(e.target===authOverlay)closeAuth();
     });
-    document.getElementById('demoAccess').addEventListener('click',()=>{demoMode=true;liveData=null;liveState='idle';closeAuth();showDashboard();toast('Hesapsız demo panosu açıldı; içerik örnek veridir.');});
-    document.getElementById('googleSignIn').addEventListener('click',async()=>{if(!auth||!signInWithPopup){toast(firebaseLoadError?'Google girişi kullanılamıyor: Firebase modülleri yüklenemedi. Hesapsız demo panosunu açabilirsiniz.':'Google girişi kullanılamıyor. Firebase yapılandırmasını ve bağlantıyı kontrol edin.');return}const button=document.getElementById('googleSignIn');button.disabled=true;try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(error){const messages={'auth/popup-closed-by-user':'Google giriş penceresi kapatıldı; oturum açılmadı.','auth/popup-blocked':'Tarayıcı açılır pencereyi engelledi. İzin verip yeniden dene.','auth/network-request-failed':'Ağ bağlantısı kurulamadı. İnternetini kontrol edip yeniden dene.','auth/unauthorized-domain':'Bu alan adı Firebase Authentication’da yetkilendirilmemiş.','auth/operation-not-allowed':'Firebase Console’da Google sağlayıcısını etkinleştir.'};toast(messages[error.code]||'Google ile giriş başarısız oldu. '+(error.message||'Lütfen yeniden dene.'))}finally{button.disabled=false}});
+    document.getElementById('demoAccess').addEventListener('click',()=>{demoMode=true;clearLiveData();closeAuth();showDashboard();toast('Hesapsız demo panosu açıldı; örnek kayıt gösterilmez.');});
+    document.getElementById('googleSignIn').addEventListener('click',async()=>{if(!auth||!signInWithPopup){toast(firebaseLoadError?'Google girişi kullanılamıyor: Firebase modülleri yüklenemedi. Hesapsız demo panosunu açabilirsiniz.':'Google girişi kullanılamıyor. Firebase yapılandırmasını ve bağlantıyı kontrol edin.');return}const button=document.getElementById('googleSignIn');button.disabled=true;try{const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});const result=await signInWithPopup(auth,provider);useLiveSession(result.user)}catch(error){const messages={'auth/popup-closed-by-user':'Google giriş penceresi kapatıldı; oturum açılmadı.','auth/popup-blocked':'Tarayıcı açılır pencereyi engelledi. İzin verip yeniden dene.','auth/network-request-failed':'Ağ bağlantısı kurulamadı. İnternetini kontrol edip yeniden dene.','auth/unauthorized-domain':'Bu alan adı Firebase Authentication’da yetkilendirilmemiş.','auth/operation-not-allowed':'Firebase Console’da Google sağlayıcısını etkinleştir.'};toast(messages[error.code]||'Google ile giriş başarısız oldu. Lütfen yeniden dene.')}finally{button.disabled=false}});
     if(demoMode)showDashboard();
     initializeFirebase();
     document.getElementById('globalSearch').addEventListener('input',applySearch);
